@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shortest Path Finder Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: row;
+        }
+
+        h1 {
+            color: #ecf0f1;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(20, 20px);
+            grid-template-rows: repeat(20, 20px);
+            gap: 2px;
+            margin-right: 20px;
+            border: 1px solid #fff;
+        }
+
+        .grid-cell {
+            width: 20px;
+            height: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .start {
+            background-color: #27ae60 !important;
+            /* Green for start */
+        }
+
+        .end {
+            background-color: #e74c3c !important;
+            /* Red for end */
+        }
+
+        .wall {
+            background-color: #7f8c8d;
+        }
+
+        .visited {
+            background-color: #f1c40f;
+        }
+
+        .path {
+            background-color: #3498db;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .controls button:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <h1>Shortest Path Finder Visualizer</h1>
+        <div id="grid-container"></div>
+    </div>
+    <div class="controls">
+        <button id="bfs-btn">Run BFS</button>
+        <button id="dfs-btn">Run DFS</button>
+        <button id="dijkstra-btn">Run Dijkstra</button>
+        <button id="a-star-btn">Run A*</button>
+        <button id="clear-btn">Clear Grid</button>
+    </div>
+
+    <script>
+        const gridSize = 20;
+        const grid = [];
+        let start = null;
+        let end = null;
+        let walls = new Set();
+        let isMouseDown = false;
+
+        function createGrid() {
+            const gridContainer = document.getElementById('grid-container');
+            for (let i = 0; i < gridSize; i++) {
+                const row = [];
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.addEventListener('click', () => handleCellClick(i, j));
+                    cell.addEventListener('mousedown', () => { isMouseDown = true; handleCellClick(i, j); });
+                    cell.addEventListener('mouseenter', () => { if (isMouseDown) handleCellClick(i, j); });
+                    cell.addEventListener('mouseup', () => { isMouseDown = false; });
+                    gridContainer.appendChild(cell);
+                    row.push(cell);
+                }
+                grid.push(row);
+            }
+        }
+
+        function handleCellClick(row, col) {
+            const cell = grid[row][col];
+            if (!start) {
+                cell.classList.add('start');
+                start = { row, col };
+            } else if (!end && (start.row !== row || start.col !== col)) {
+                cell.classList.add('end');
+                end = { row, col };
+            } else if (start && end && !cell.classList.contains('start') && !cell.classList.contains('end')) {
+                const key = `${row},${col}`;
+                if (walls.has(key)) {
+                    walls.delete(key);
+                    cell.classList.remove('wall');
+                } else {
+                    walls.add(key);
+                    cell.classList.add('wall');
+                }
+            }
+        }
+
+        function clearPath() {
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = grid[i][j];
+                    if (cell.classList.contains('visited') || cell.classList.contains('path')) {
+                        cell.classList.remove('visited', 'path');
+                    }
+                }
+            }
+        }
+
+        async function bfs() {
+            if (!start || !end) return alert("Please set both start and end points!");
+            clearPath();
+
+            const queue = [start];
+            const visited = new Set();
+            const parent = {};
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            while (queue.length) {
+                const { row, col } = queue.shift();
+                if (row === end.row && col === end.col) {
+                    await drawPath(parent);
+                    return;
+                }
+
+                for (let [dx, dy] of directions) {
+                    const newRow = row + dx;
+                    const newCol = col + dy;
+                    const key = `${newRow},${newCol}`;
+                    if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize &&
+                        !visited.has(key) && !walls.has(key)) {
+                        visited.add(key);
+                        parent[key] = { row, col };
+                        queue.push({ row: newRow, col: newCol });
+                        grid[newRow][newCol].classList.add('visited');
+                        await sleep(10);
+                    }
+                }
+            }
+            alert("Path not found!");
+        }
+
+        async function dfs() {
+            if (!start || !end) return alert("Please set both start and end points!");
+            clearPath();
+
+            const stack = [start];
+            const visited = new Set();
+            const parent = {};
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            while (stack.length) {
+                const { row, col } = stack.pop();
+                if (row === end.row && col === end.col) {
+                    await drawPath(parent);
+                    return;
+                }
+
+                const key = `${row},${col}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                grid[row][col].classList.add('visited');
+                await sleep(10);
+
+                for (let [dx, dy] of directions) {
+                    const newRow = row + dx;
+                    const newCol = col + dy;
+                    const newKey = `${newRow},${newCol}`;
+                    if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize &&
+                        !visited.has(newKey) && !walls.has(newKey)) {
+                        parent[newKey] = { row, col };
+                        stack.push({ row: newRow, col: newCol });
+                    }
+                }
+            }
+            alert("Path not found!");
+        }
+
+        async function dijkstra() {
+            if (!start || !end) return alert("Please set both start and end points!");
+            clearPath();
+
+            const pq = [{ row: start.row, col: start.col, dist: 0 }];
+            const visited = new Set();
+            const parent = {};
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            while (pq.length) {
+                pq.sort((a, b) => a.dist - b.dist);
+                const { row, col, dist } = pq.shift();
+                if (row === end.row && col === end.col) {
+                    await drawPath(parent);
+                    return;
+                }
+
+                const key = `${row},${col}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                grid[row][col].classList.add('visited');
+                await sleep(10);
+
+                for (let [dx, dy] of directions) {
+                    const newRow = row + dx;
+                    const newCol = col + dy;
+                    const newKey = `${newRow},${newCol}`;
+                    if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize &&
+                        !visited.has(newKey) && !walls.has(newKey)) {
+                        pq.push({ row: newRow, col: newCol, dist: dist + 1 });
+                        parent[newKey] = { row, col };
+                    }
+                }
+            }
+            alert("Path not found!");
+        }
+
+        async function aStar() {
+            if (!start || !end) return alert("Please set both start and end points!");
+            clearPath();
+
+            const pq = [{ row: start.row, col: start.col, g: 0, h: heuristic(start, end), f: 0 }];
+            const visited = new Set();
+            const parent = {};
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            while (pq.length) {
+                pq.sort((a, b) => a.f - b.f);
+                const { row, col, g, h, f } = pq.shift();
+                if (row === end.row && col === end.col) {
+                    await drawPath(parent);
+                    return;
+                }
+
+                const key = `${row},${col}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                grid[row][col].classList.add('visited');
+                await sleep(10);
+
+                for (let [dx, dy] of directions) {
+                    const newRow = row + dx;
+                    const newCol = col + dy;
+                    const newKey = `${newRow},${newCol}`;
+                    if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize &&
+                        !visited.has(newKey) && !walls.has(newKey)) {
+                        const newG = g + 1;
+                        const newH = heuristic({ row: newRow, col: newCol }, end);
+                        const newF = newG + newH;
+                        pq.push({ row: newRow, col: newCol, g: newG, h: newH, f: newF });
+                        parent[newKey] = { row, col };
+                    }
+                }
+            }
+            alert("Path not found!");
+        }
+
+        function heuristic(node, end) {
+            return Math.abs(node.row - end.row) + Math.abs(node.col - end.col);
+        }
+
+        async function drawPath(parent) {
+            let current = end;
+            while (current) {
+                const { row, col } = current;
+                if (!grid[row][col].classList.contains('start') && !grid[row][col].classList.contains('end')) {
+                    grid[row][col].classList.add('path');
+                }
+                current = parent[`${row},${col}`];
+                await sleep(50);
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        document.getElementById('bfs-btn').addEventListener('click', bfs);
+        document.getElementById('dfs-btn').addEventListener('click', dfs);
+        document.getElementById('dijkstra-btn').addEventListener('click', dijkstra);
+        document.getElementById('a-star-btn').addEventListener('click', aStar);
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            grid.forEach(row => row.forEach(cell => cell.classList.remove('start', 'end', 'wall', 'visited', 'path')));
+            start = null;
+            end = null;
+            walls.clear();
+        });
+
+        createGrid();
+    </script>
+</body>
+
+</html>
